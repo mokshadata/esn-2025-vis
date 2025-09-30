@@ -36,8 +36,9 @@ const countedData = Object.fromEntries(
     })
 )
 const CASE_COUNTS = Object.values(countedData).map((docketDay) => (docketDay.caseCount))
+CASE_COUNTS.sort((a, b) => (a - b))
 const MIN_CASE_COUNTS = Math.min(...CASE_COUNTS)
-const MAX_CASE_COUNTS = Math.max(...CASE_COUNTS)
+const MAX_CASE_COUNTS = Math.min(Math.max(...CASE_COUNTS), 150)
 
 const COURTS = [1, 2, 3, 4, 5, 6, 7, 8]
   .map((precinct) => [`${precinct}1`, `${precinct}2`])
@@ -133,7 +134,7 @@ addChangeListener(console.log)
 function renderDay(dayInfo, courtnum, docketData) {
   const dayWidth = 10
   const base = `<rect
-    fill="${docketData && COLORS[Math.ceil(docketData.caseCount / MAX_CASE_COUNTS * 7) - 1] || (dayInfo.year === 2025 && EMPTY_COLOR) || '#FFF'}"
+    fill="${docketData && COLORS[Math.min(Math.ceil(docketData.caseCount / MAX_CASE_COUNTS * 7) - 1, 6)] || (dayInfo.year === 2025 && EMPTY_COLOR) || '#FFF'}"
     class="docket-day"
     data-case-count="${docketData && docketData.caseCount || 0}"
     data-court-name="${docketData && docketData['Court Name']}"
