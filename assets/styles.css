@@ -1,0 +1,18 @@
+.docket-day {
+    /* fill: blue; */
+    /* width: 20px;
+    height: 20px; */
+    stroke: transparent;
+    stroke-width: 1px;
+    transition: 50ms linear all;
+}
+
+.docket-month {
+    stroke: lightskyblue;
+    stroke-width: 1px;
+    fill: transparent;
+}
+
+text {
+    font-size: 6px;
+}
