@@ -49,7 +49,7 @@ summary kbd {
     font-size: 0.5rem;
     display: flex;
     flex-direction: column;
-    width: 42px;
+    width: 44px;
     padding: 4px;
     border: 2px solid transparent;
     transition: all 100ms ease-in-out;
