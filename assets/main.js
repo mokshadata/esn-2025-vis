@@ -1,5 +1,5 @@
 
-const dataText = await fetch('./data/dockets-2025-09.csv').then((res) => res.text())
+const dataText = await fetch('./data/dockets-2025-10-06.csv').then((res) => res.text())
 const [fields, ...dataList] = dataText.split('\n').map((line) => (line.split(',')))
 
 const transforms = {
@@ -18,21 +18,34 @@ const data = dataList.map((row) => (
   )
 )).map((row) => ({...row, ...computed(row)}))
 
+function summarizeDockets(dockets) {
+  const baseData = Object.fromEntries(Object.entries(dockets[0]).filter(([key]) => [
+    'Court Name', 'Date', 'Day', 'Judge Name', 'Month', 'Week', 'Year', 'courtnum',
+  ].includes(key)))
+
+  return {
+    docketLinks: dockets.map((docket) => (docket['Docket Link'])),
+    startTimes: dockets.map((docket) => (docket['Start Time'])),
+    endTimes: dockets.map((docket) => (docket['End Time'])),
+    names: dockets.map((docket) => (docket['Name'])),
+    caseCount: dockets.reduce((result, current) => (result + current['Number of Cases']), 0),
+    ...baseData,
+  }
+}
+
+const GROUPED_BY_COURT = Object.groupBy(data, (docket) => (docket['courtnum']))
+const COUNTED_BY_COURT = Object.fromEntries(
+  Object.entries(GROUPED_BY_COURT)
+    .map(([courtnum, dockets]) => {
+      return [courtnum, summarizeDockets(dockets)]
+    })
+  )
+
 const groupedData = Object.groupBy(data, (docket) => (`${docket['courtnum']}--${docket['Date']}`))
 const countedData = Object.fromEntries(
   Object.entries(groupedData)
     .map(([courtDateGroupKey, dockets]) => {
-      const baseData = Object.fromEntries(Object.entries(dockets[0]).filter(([key]) => [
-        'Court Name', 'Date', 'Day', 'Judge Name', 'Month', 'Week', 'Year', 'courtnum',
-      ].includes(key)))
-      return [courtDateGroupKey, {
-        docketLinks: dockets.map((docket) => (docket['Docket Link'])),
-        startTimes: dockets.map((docket) => (docket['Start Time'])),
-        endTimes: dockets.map((docket) => (docket['End Time'])),
-        names: dockets.map((docket) => (docket['Name'])),
-        caseCount: dockets.reduce((result, current) => (result + current['Number of Cases']), 0),
-        ...baseData,
-      }]
+      return [courtDateGroupKey, summarizeDockets(dockets)]
     })
 )
 const CASE_COUNTS = Object.values(countedData).map((docketDay) => (docketDay.caseCount))
@@ -125,11 +138,43 @@ const EMPTY_COLOR = '#EFEFEF'
 const {
   observable,
   addChangeListener,
-} = makeObservable({
+} = useObservable({
   highlight: {},
-})
+}, (target, prop, receiver) => {
+  const filteredDockets = () => (target.highlight.date && Object.values(countedData)
+    .filter((docketDays) => (docketDays['Date'] === target.highlight.date)) ||
+    []
+  )
+  const courtSummaries = () => {
+    if (target.highlight.date) {
+      const dockets = filteredDockets()
+      return Object.fromEntries(
+        COURTS.map((courtnum) => ([
+          courtnum,
+          dockets.find((docket) => (docket.courtnum === courtnum)) || { ...Object.fromEntries(
+            Object.entries(COUNTED_BY_COURT[courtnum]).filter(([key, val]) => ([
+              'Court Name', 'Judge Name','courtnum',
+            ].includes(key)))
+          ), caseCount: 0, },
+        ]))
+      )
+    }
+    return Object.fromEntries(
+      COURTS.map((courtnum) => ([
+        courtnum,
+        COUNTED_BY_COURT[courtnum],
+      ]))
+    )
+  }
 
-addChangeListener(console.log)
+  const computes = { filteredDockets, courtSummaries, }
+
+  if (prop in computes) {
+    return computes[prop]()
+  }
+
+  return null
+})
 
 function renderDay(dayInfo, courtnum, docketData) {
   const dayWidth = 10
@@ -138,7 +183,7 @@ function renderDay(dayInfo, courtnum, docketData) {
     class="docket-day"
     data-case-count="${docketData && docketData.caseCount || 0}"
     data-court-name="${docketData && docketData['Court Name']}"
-    data-court="${courtnum}"
+    data-courtnum="${courtnum}"
     data-woy="2025-${dayInfo.weekOfYear}"
     data-wom="${dayInfo.weekOfMonth}"
     data-dow="${dayInfo.dayOfWeek}"
@@ -232,7 +277,7 @@ function renderCourt(courtnum) {
   const courtInfo = Object.values(countedData).find((court) => (court.courtnum === courtnum))
   
   return `<section>
-    <h3>${courtInfo['Court Name']}, ${courtInfo['Judge Name']}</h3>
+    <h4>${courtInfo['Court Name']}, ${courtInfo['Judge Name']}</h4>
     <svg
       class="court--docket-year"
       data-courtnum="${courtnum}"
@@ -252,6 +297,29 @@ function renderCourt(courtnum) {
   `
 }
 
+function renderSummary() {
+  const summarySelectedEl = document.querySelector('#summary--selected')
+  const summaryTotalsEl = document.querySelector('#summary--totals')
+  const summaryChartEl = document.querySelector('#summary--chart')
+
+  const maxCaseCounts = observable.highlight.date && MAX_CASE_COUNTS || Math.max(...Object.entries(observable.courtSummaries).map(([courtnum, summary]) => (summary.caseCount)))
+
+  summaryTotalsEl.innerHTML = Object.entries(observable.courtSummaries).map(([courtnum, summary]) => (
+    `<kbd
+      data-courtnum="${courtnum}"
+      data-count="${summary.caseCount}"
+      data-color-index="${Math.min(Math.ceil(summary.caseCount / maxCaseCounts * 7) - 1, 6)}"
+      style="background-color: ${COLORS[Math.min(Math.ceil(summary.caseCount / maxCaseCounts * 7) - 1, 6)] || '#EFEFEF'};"
+    >${summary['Court Name'].replace('Harris County JP ', '')}</kbd>`
+  )).join('')
+
+  if (observable.highlight.date) {
+    summarySelectedEl.innerHTML = `${observable.highlight.date} Totals`
+    return
+  }
+  summarySelectedEl.innerHTML = `Year-to-Date Totals`
+}
+
 function renderVis() {
   const courtsHTML = COURTS.map(renderCourt).join('')
 
@@ -269,16 +337,30 @@ function renderVis() {
   })
 
   addChangeListener(({ property, target, previousValue, value }) => {
+    if (property !== 'highlight') {
+      return
+    }
+
     if (value.year === '2025') {
+      console.log(value)
       document.querySelector('#dynamic-styles').innerHTML = `
       rect[data-date="${value.date}"] {
         stroke: blue;
+      }
+      kbd[data-courtnum="${value.courtnum}"] {
+        border: 2px solid blue;
       }
       `
     } else {
       document.querySelector('#dynamic-styles').innerHTML = ``
     }
   })
+  
+  addChangeListener(({ property, target, previousValue, value }) => {
+    renderSummary()
+  })
+
 }
 
 renderVis()
+renderSummary()

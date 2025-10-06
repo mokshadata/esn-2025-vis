@@ -1,4 +1,4 @@
-function makeObservable(initialState) {
+function useObservable(initialState, compute) {
   const eventHandlers = {
     onValueChange: []
   };
@@ -15,7 +15,13 @@ function makeObservable(initialState) {
         eventHandlers.onValueChange.forEach(handler => handler({ property, value, previousValue, target }));
       }
       return result;
-    }
+    },
+    get(target, prop, receiver) {
+      if (Object.keys(initialState).includes(prop)) {
+        return Reflect.get(...arguments)
+      }
+      return compute(...arguments)
+    },
   });
 
   return {
