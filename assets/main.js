@@ -179,7 +179,7 @@ const {
 function renderDay(dayInfo, courtnum, docketData) {
   const dayWidth = 10
   const base = `<rect
-    fill="${docketData && COLORS[Math.min(Math.ceil(docketData.caseCount / MAX_CASE_COUNTS * 7) - 1, 6)] || (dayInfo.year === 2025 && EMPTY_COLOR) || '#FFF'}"
+    fill="${docketData && COLORS[calcColorIndex(docketData.caseCount, MAX_CASE_COUNTS)] || (dayInfo.year === 2025 && EMPTY_COLOR) || '#FFF'}"
     class="docket-day"
     data-case-count="${docketData && docketData.caseCount || 0}"
     data-court-name="${docketData && docketData['Court Name']}"
@@ -223,7 +223,6 @@ function renderMonth(monthInfo, weekOfYearStart) {
       weeksLength = monthInfo.weeksLength - 1
     }
   }
-  // <text x="${MONTH_STARTS[index] * dayWidth + 20}" y="0" text-anchor="middle">${month}</text>`)
 
   const xStart = monthWeekStart * dayWidth
   const xEnd = (monthWeekStart + weeksLength) * dayWidth
@@ -263,8 +262,6 @@ function renderCourt(courtnum) {
     )
     .join('')
 
-  
-
   const monthBounds = MONTHS_OF_YEAR_2025
     .map((monthInfo, index) => {
       return renderMonth(monthInfo, MONTH_STARTS[index])
@@ -297,27 +294,43 @@ function renderCourt(courtnum) {
   `
 }
 
+function calcColorIndex(count, max) {
+  return Math.min(Math.ceil(count / max * COLORS.length) - 1, COLORS.length - 1)
+}
+
+function calcColor(count, max) {
+  return COLORS[calcColorIndex(count, max)] || EMPTY_COLOR
+}
+
 function renderSummary() {
-  const summarySelectedEl = document.querySelector('#summary--selected')
-  const summaryTotalsEl = document.querySelector('#summary--totals')
-  const summaryChartEl = document.querySelector('#summary--chart')
-
-  const maxCaseCounts = observable.highlight.date && MAX_CASE_COUNTS || Math.max(...Object.entries(observable.courtSummaries).map(([courtnum, summary]) => (summary.caseCount)))
-
-  summaryTotalsEl.innerHTML = Object.entries(observable.courtSummaries).map(([courtnum, summary]) => (
+  document.querySelector('#summary--totals').innerHTML = Object.entries(observable.courtSummaries).map(([courtnum, summary]) => (
     `<kbd
       data-courtnum="${courtnum}"
-      data-count="${summary.caseCount}"
-      data-color-index="${Math.min(Math.ceil(summary.caseCount / maxCaseCounts * 7) - 1, 6)}"
-      style="background-color: ${COLORS[Math.min(Math.ceil(summary.caseCount / maxCaseCounts * 7) - 1, 6)] || '#EFEFEF'};"
     >${summary['Court Name'].replace('Harris County JP ', '')}</kbd>`
   )).join('')
 
+  updateSummary()
+}
+
+function updateSummary() {
+  const maxCaseCounts = observable.highlight.date && MAX_CASE_COUNTS || Math.max(...Object.entries(observable.courtSummaries).map(([courtnum, summary]) => (summary.caseCount)))
+  const courtSummaryEls = document.querySelectorAll('summary kbd')
+
+  const summarySelectedEl = document.querySelector('#summary--selected')
+
+  courtSummaryEls.forEach((courtSummaryEl) => {
+    const courtSummary = observable.courtSummaries[courtSummaryEl.dataset.courtnum]
+
+    courtSummaryEl.dataset.count = courtSummary.caseCount
+    courtSummaryEl.dataset.colorIndex = calcColorIndex(courtSummary.caseCount, maxCaseCounts)
+    courtSummaryEl.style.backgroundColor = calcColor(courtSummary.caseCount, maxCaseCounts)
+  })
+
   if (observable.highlight.date) {
-    summarySelectedEl.innerHTML = `${observable.highlight.date} Totals`
+    summarySelectedEl.dataset.label = observable.highlight.date
     return
   }
-  summarySelectedEl.innerHTML = `Year-to-Date Totals`
+  summarySelectedEl.dataset.label = `Year-to-Date`
 }
 
 function renderVis() {
@@ -342,7 +355,6 @@ function renderVis() {
     }
 
     if (value.year === '2025') {
-      console.log(value)
       document.querySelector('#dynamic-styles').innerHTML = `
       rect[data-date="${value.date}"] {
         stroke: blue;
@@ -357,7 +369,7 @@ function renderVis() {
   })
   
   addChangeListener(({ property, target, previousValue, value }) => {
-    renderSummary()
+    updateSummary()
   })
 
 }

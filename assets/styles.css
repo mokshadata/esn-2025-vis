@@ -52,7 +52,13 @@ summary kbd {
     width: 42px;
     padding: 4px;
     border: 2px solid transparent;
-    transition: all 50ms linear;
+    transition: all 100ms ease-in-out;
+
+    --pico-border-radius: 0;
+}
+
+#summary--selected::before {
+    content: attr(data-label) " ";
 }
 
 summary kbd:not([data-color-index="7"]):not([data-color-index="6"]):not([data-color-index="5"]) {
